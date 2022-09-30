@@ -321,8 +321,7 @@ If called after a change operator, i.e. cw or cW,
 then both behave like ce or cE.
 
 If point is at the end of the buffer and cannot be moved signal
-'end-of-buffer is raised.
-"
+`end-of-buffer' is raised."
   :type exclusive
   (let ((thing (if bigword 'evil-WORD 'evil-word))
         (orig (point))
@@ -645,7 +644,7 @@ and jump to the corresponding one."
     (evil--next-flyspell-error nil)))
 
 (evil-define-motion evil-previous-open-paren (count)
-  "Go to [count] previous unmatched '('."
+  "Go to [count] previous unmatched \"(\"."
   :type exclusive
   (evil-up-paren ?\( ?\) (- (or count 1))))
 
@@ -1438,7 +1437,7 @@ or line COUNT to the top of the window."
       (evil-visual-select evil-ex-search-match-beg
                           evil-ex-search-match-end
                           'inclusive
-                          (cl-case direction ('forward +1) ('backward -1))
+                          (pcase direction ('forward +1) ('backward -1))
                           t)
       (list evil-ex-search-match-beg evil-ex-search-match-end))
      ((and visual-state (eq 'forward direction))
@@ -2945,7 +2944,7 @@ Calls `evil-complete-previous-line-func'."
 
 (defun evil-repeat-search (flag)
   "Called to record a search command.
-FLAG is either 'pre or 'post if the function is called before resp.
+FLAG is either `pre' or `post' if the function is called before resp.
 after executing the command."
   (cond
    ((and (evil-operator-state-p) (eq flag 'pre))
@@ -3130,7 +3129,7 @@ not interfere with another."
   (if (null list)
       (user-error
        "Enable one of the following modes for folding to work: %s"
-       (mapconcat 'symbol-name (mapcar 'caar evil-fold-list) ", "))
+       (mapconcat #'symbol-name (mapcar #'caar evil-fold-list) ", "))
     (let* ((modes (caar list)))
       (if (evil--mode-p modes)
           (let* ((actions (cdar list))
@@ -4878,9 +4877,9 @@ This var stores the eol position, so it can be restored when necessary.")
   "No insert-state repeat info is recorded after executing in normal state.
 Restore the disabled repeat hooks on insert-state exit."
   (evil-repeat-stop)
-  (add-hook 'pre-command-hook 'evil-repeat-pre-hook)
-  (add-hook 'post-command-hook 'evil-repeat-post-hook)
-  (remove-hook 'evil-insert-state-exit-hook 'evil--restore-repeat-hooks))
+  (add-hook 'pre-command-hook #'evil-repeat-pre-hook)
+  (add-hook 'post-command-hook #'evil-repeat-post-hook)
+  (remove-hook 'evil-insert-state-exit-hook #'evil--restore-repeat-hooks))
 
 (defvar evil--execute-normal-return-state nil
   "The state to return to after executing in normal state.")
@@ -4888,34 +4887,37 @@ Restore the disabled repeat hooks on insert-state exit."
 (defun evil-execute-in-normal-state ()
   "Execute the next command in Normal state."
   (interactive)
-  (evil-delay '(not (memq this-command
-                          '(nil
-                            evil-execute-in-normal-state
-                            evil-replace-state
-                            evil-use-register
-                            digit-argument
-                            negative-argument
-                            universal-argument
-                            universal-argument-minus
-                            universal-argument-more
-                            universal-argument-other-key)))
-      `(progn
-         (with-current-buffer ,(current-buffer)
-           (when (and evil--execute-normal-eol-pos
-                      (= (point) (1- evil--execute-normal-eol-pos))
-                      (not (memq this-command '(evil-insert
-                                                evil-goto-mark))))
-             (forward-char))
-           (unless (memq evil-state '(replace insert))
-             (evil-change-state ',evil-state))
-           (when (eq 'insert evil-state)
-             (remove-hook 'pre-command-hook 'evil-repeat-pre-hook)
-             (remove-hook 'post-command-hook 'evil-repeat-post-hook)
-             (add-hook 'evil-insert-state-exit-hook 'evil--restore-repeat-hooks))
-           (setq evil-move-cursor-back ',evil-move-cursor-back
-                 evil-move-beyond-eol ',evil-move-beyond-eol
-                 evil-execute-normal-keys nil)))
-    'post-command-hook)
+  (let ((buf (current-buffer))
+        (estate evil-state)
+        (emcb evil-move-cursor-back)
+        (embe evil-move-beyond-eol))
+    (evil-with-delay (not (memq this-command
+                                '(nil
+                                  evil-execute-in-normal-state
+                                  evil-replace-state
+                                  evil-use-register
+                                  digit-argument
+                                  negative-argument
+                                  universal-argument
+                                  universal-argument-minus
+                                  universal-argument-more
+                                  universal-argument-other-key)))
+        post-command-hook
+      (with-current-buffer buf
+        (when (and evil--execute-normal-eol-pos
+                   (= (point) (1- evil--execute-normal-eol-pos))
+                   (not (memq this-command '(evil-insert
+                                             evil-goto-mark))))
+          (forward-char))
+        (unless (memq evil-state '(replace insert))
+          (evil-change-state estate))
+        (when (eq 'insert evil-state)
+          (remove-hook 'pre-command-hook #'evil-repeat-pre-hook)
+          (remove-hook 'post-command-hook #'evil-repeat-post-hook)
+          (add-hook 'evil-insert-state-exit-hook #'evil--restore-repeat-hooks))
+        (setq evil-move-cursor-back emcb
+              evil-move-beyond-eol embe
+              evil-execute-normal-keys nil))))
   (setq evil-insert-count nil
         evil--execute-normal-return-state evil-state
         evil--execute-normal-eol-pos (when (eolp) (point))
@@ -4928,7 +4930,7 @@ Restore the disabled repeat hooks on insert-state exit."
 (defun evil-stop-execute-in-emacs-state ()
   (when (and (not (eq this-command #'evil-execute-in-emacs-state))
              (not (minibufferp)))
-    (remove-hook 'post-command-hook 'evil-stop-execute-in-emacs-state)
+    (remove-hook 'post-command-hook #'evil-stop-execute-in-emacs-state)
     (when (buffer-live-p evil-execute-in-emacs-state-buffer)
       (with-current-buffer evil-execute-in-emacs-state-buffer
         (if (and (eq evil-previous-state 'visual)

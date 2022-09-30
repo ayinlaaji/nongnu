@@ -127,8 +127,8 @@
                              emulation-mode-map-alists))
     (evil-initialize-local-keymaps)
     ;; restore the proper value of `major-mode' in Fundamental buffers
-    (when (eq major-mode 'turn-on-evil-mode)
-      (setq major-mode 'fundamental-mode))
+    (when (eq major-mode #'turn-on-evil-mode)
+      (setq major-mode #'fundamental-mode))
     (when (minibufferp)
       (setq-local evil-default-state 'insert)
       (setq-local evil-echo-state nil))
@@ -138,16 +138,16 @@
     ;; initialization is only for the case when `evil-local-mode' is
     ;; called directly for the first time in a buffer.
     (unless evil-state (evil-initialize-state))
-    (add-hook 'input-method-activate-hook 'evil-activate-input-method t t)
-    (add-hook 'input-method-deactivate-hook 'evil-deactivate-input-method t t)
-    (add-hook 'activate-mark-hook 'evil-visual-activate-hook nil t)
-    (add-hook 'pre-command-hook 'evil-repeat-pre-hook)
-    (add-hook 'post-command-hook 'evil-repeat-post-hook))
+    (add-hook 'input-method-activate-hook #'evil-activate-input-method t t)
+    (add-hook 'input-method-deactivate-hook #'evil-deactivate-input-method t t)
+    (add-hook 'activate-mark-hook #'evil-visual-activate-hook nil t)
+    (add-hook 'pre-command-hook #'evil-repeat-pre-hook)
+    (add-hook 'post-command-hook #'evil-repeat-post-hook))
    (t
     (evil-refresh-mode-line)
-    (remove-hook 'activate-mark-hook 'evil-visual-activate-hook t)
-    (remove-hook 'input-method-activate-hook 'evil-activate-input-method t)
-    (remove-hook 'input-method-deactivate-hook 'evil-deactivate-input-method t)
+    (remove-hook 'activate-mark-hook #'evil-visual-activate-hook t)
+    (remove-hook 'input-method-activate-hook #'evil-activate-input-method t)
+    (remove-hook 'input-method-deactivate-hook #'evil-deactivate-input-method t)
     (evil-change-state nil))))
 
 ;; Make the variable permanent local.  This is particular useful in
@@ -375,7 +375,8 @@ then this function does nothing."
 
 ;; Refresh cursor color.
 ;; Cursor color can only be set for each frame but not for each buffer.
-(add-hook 'window-configuration-change-hook 'evil-refresh-cursor)
+;; FIXME: Shouldn't this belong in `evil-(local-)mode'?
+(add-hook 'window-configuration-change-hook #'evil-refresh-cursor)
 (defadvice select-window (after evil activate)
   (evil-refresh-cursor))
 
@@ -453,14 +454,14 @@ then this function does nothing."
 This allows input methods to be used in normal-state."
   `(unwind-protect
        (progn
-         (remove-hook 'input-method-activate-hook 'evil-activate-input-method t)
+         (remove-hook 'input-method-activate-hook #'evil-activate-input-method t)
          (remove-hook 'input-method-deactivate-hook
-                      'evil-deactivate-input-method t)
+                      #'evil-deactivate-input-method t)
          ,@body)
      (progn
-       (add-hook 'input-method-activate-hook 'evil-activate-input-method nil t)
+       (add-hook 'input-method-activate-hook #'evil-activate-input-method nil t)
        (add-hook 'input-method-deactivate-hook
-                 'evil-deactivate-input-method nil t))))
+                 #'evil-deactivate-input-method nil t))))
 
 (defadvice toggle-input-method (around evil)
   "Refresh `evil-input-method'."
@@ -1048,18 +1049,19 @@ mode, in which case `evil-define-minor-mode-key' is used."
         ((and (consp keymap) (eq (car keymap) 'quote))
          `(evil-define-minor-mode-key ,state ,keymap ,key ,def ,@bindings))
         (t
-         `(evil-delay ',(if (symbolp keymap)
-                            `(and (boundp ',keymap) (keymapp ,keymap))
-                          `(keymapp ,keymap))
-              '(condition-case-unless-debug err
-                   (evil-define-key* ,state ,keymap ,key ,def ,@bindings)
-                 (error
-                  (message "error in evil-define-key: %s"
-                           (error-message-string err))))
-            'after-load-functions t nil
-            (format "evil-define-key-in-%s"
-                    ',(if (symbolp keymap) keymap 'keymap))))))
-(defalias 'evil-declare-key 'evil-define-key)
+         `(evil-with-delay ,(if (symbolp keymap)
+                                `(and (boundp ',keymap) (keymapp ,keymap))
+                              `(keymapp ,keymap))
+              (after-load-functions t nil
+                                    ,(format "evil-define-key-in-%s"
+                                             (if (symbolp keymap) keymap
+                                               'keymap)))
+            (condition-case-unless-debug err
+                (evil-define-key* ,state ,keymap ,key ,def ,@bindings)
+              (error
+               (message "error in evil-define-key: %s"
+                        (error-message-string err))))))))
+(defalias 'evil-declare-key #'evil-define-key)
 
 (defun evil-define-key* (state keymap key def &rest bindings)
   "Create a STATE binding from KEY to DEF for KEYMAP.
@@ -1101,7 +1103,7 @@ The use is nearly identical to `evil-define-key' with the
 exception that this is a function and not a macro (and so will
 not be expanded when compiled which can have unintended
 consequences). `evil-define-key*' also does not defer any
-bindings like `evil-define-key' does using `evil-delay'. This
+bindings like `evil-define-key' does using `evil-with-delay'.  This
 allows errors in the bindings to be caught immediately, and makes
 its behavior more predictable."
   (declare (indent defun))
